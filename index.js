@@ -4,10 +4,11 @@ const path = require('path');
 const mongoose = require('mongoose');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
+const dotenv = require('dotenv').config();
 
 const PORT = 3000;
 //TODO: Replace with the URI pointing to your own MongoDB setup
-const MONGO_URI = 'mongodb://localhost:27017/realtime_chat';
+const MONGO_URI = process.env.MONGO_URI;
 const app = express();
 expressWs(app);
 
