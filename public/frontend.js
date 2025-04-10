@@ -7,22 +7,22 @@ const typingStatus = document.getElementById("typing-status");
 const onlineUsers = document.getElementById("online-users");
 const userCount = document.getElementById("user-count");
 
-// This should be passed from server-side EJS into the script tag
-const currentUsername = window.localStorage.getItem("chat-username"); // fallback option
+// This should be passed from server-side EJS into a script tag
+const currentUsername = window.username || "anonymous"; // fallback
 
-// Helper: Format timestamp
+// Format timestamps
 function formatTime(isoString) {
   const date = new Date(isoString);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// Helper: Get initials for avatar
+// Avatar initials
 function getInitials(name) {
   return name.charAt(0).toUpperCase();
 }
 
-// Helper: Create message element
-function renderMessage({ sender, message, timestamp, status, readBy }) {
+// Render one message
+function renderMessage({ sender, message, timestamp, status = "sent", readBy = [] }) {
   const isOwnMessage = sender === currentUsername;
 
   const msgWrapper = document.createElement("div");
@@ -39,9 +39,8 @@ function renderMessage({ sender, message, timestamp, status, readBy }) {
         </div>
       </div>
       <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-        ${status} • ${formatTime(timestamp)}${
-    isOwnMessage && readBy.length > 0 ? ` • Read by: ${readBy.join(", ")}` : ""
-  }
+        ${status} • ${formatTime(timestamp)}
+        ${isOwnMessage && readBy.length > 0 ? ` • Read by: ${readBy.join(", ")}` : ""}
       </div>
     </div>
   `;
@@ -51,7 +50,7 @@ function renderMessage({ sender, message, timestamp, status, readBy }) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Handle form submission
+// Handle sending messages
 chatForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = chatInput.value.trim();
@@ -62,11 +61,20 @@ chatForm.addEventListener("submit", (e) => {
     message: text,
   };
 
+  // Optimistically render your own message
+  renderMessage({
+    sender: currentUsername,
+    message: text,
+    timestamp: new Date().toISOString(),
+    status: "sent",
+    readBy: [currentUsername],
+  });
+
   webSocket.send(JSON.stringify(payload));
   chatInput.value = "";
 });
 
-// Handle WebSocket events
+// Handle incoming events
 webSocket.addEventListener("message", (event) => {
   const data = JSON.parse(event.data);
 
@@ -87,16 +95,10 @@ webSocket.addEventListener("message", (event) => {
       });
       userCount.textContent = data.users.length;
       break;
-    case "userJoined":
-      // Optional toast or system message
-      break;
-    case "userLeft":
-      // Optional system update
-      break;
   }
 });
 
-// Emit typing event
+// Typing indication
 chatInput.addEventListener("input", () => {
   webSocket.send(JSON.stringify({ type: "typing" }));
 });
