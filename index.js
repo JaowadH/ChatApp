@@ -17,14 +17,15 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const app = express();
 expressWs(app);
 
-// Middleware
+// ---------- Middleware ----------
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-// Session setup
+// Session setup with MongoDB store
 app.use(session({
     secret: SESSION_SECRET || 'fallbackSecret',
     resave: false,
@@ -32,11 +33,12 @@ app.use(session({
     store: MongoStore.create({ mongoUrl: MONGO_URI })
 }));
 
-// In-memory user/socket maps
-const connectedClients = {};
-const userSockets = new Map();
+// ---------- WebSocket Management ----------
 
-// WebSocket endpoint
+const connectedClients = {};  // username -> socket
+const userSockets = new Map();  // socket -> username
+
+// WebSocket connection handler
 app.ws('/ws', (socket, req) => {
     const username = req.session?.user?.username;
     if (!username) {
@@ -50,6 +52,7 @@ app.ws('/ws', (socket, req) => {
     userSockets.set(socket, username);
     broadcastUserList();
 
+    // Handle messages
     socket.on('message', (rawMessage) => {
         try {
             const data = JSON.parse(rawMessage);
@@ -82,6 +85,7 @@ app.ws('/ws', (socket, req) => {
         }
     });
 
+    // Cleanup on disconnect
     socket.on('close', () => {
         const user = userSockets.get(socket);
         delete connectedClients[user];
@@ -108,11 +112,23 @@ function broadcastMessage(message) {
     }
 }
 
-// Routes
+// ---------- Admin Middleware ----------
+
+function requireAdmin(req, res, next) {
+    if (req.session.user && req.session.user.role === 'admin') {
+        return next();
+    }
+    return res.status(403).send('Access denied.');
+}
+
+// ---------- Routes ----------
+
+// Landing page
 app.get('/', (req, res) => {
     res.render('index/unauthenticated');
 });
 
+// Login page and handler
 app.get('/login', (req, res) => {
     res.render('login', { errorMessage: null });
 });
@@ -124,19 +140,21 @@ app.post('/login', async (req, res) => {
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.render('login', { errorMessage: 'Invalid username or password' });
         }
+        req.session.user = { username: user.username, role: user.role };
 
-        req.session.user = {
-            username: user.username,
-            role: user.role
-        };
-
-        res.redirect('/dashboard');
+        // Redirect to admin dashboard if admin, otherwise to user dashboard
+        if (user.role === 'admin') {
+            return res.redirect('/admin');
+        } else {
+            return res.redirect('/dashboard');
+        }
     } catch (err) {
         console.error(err);
         res.render('login', { errorMessage: 'Login error, please try again.' });
     }
 });
 
+// Signup page and handler
 app.get('/signup', (req, res) => {
     res.render('signup', { errorMessage: null });
 });
@@ -148,14 +166,10 @@ app.post('/signup', async (req, res) => {
         if (existingUser) return res.render('signup', { errorMessage: 'Username already exists' });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ username, password: hashedPassword });
+        const newUser = new User({ username, password: hashedPassword, role: 'user' });
         await newUser.save();
 
-        req.session.user = {
-            username: newUser.username,
-            role: newUser.role
-        };
-
+        req.session.user = { username: newUser.username, role: newUser.role };
         res.redirect('/dashboard');
     } catch (err) {
         console.error(err);
@@ -163,15 +177,79 @@ app.post('/signup', async (req, res) => {
     }
 });
 
+// Logout route
 app.post('/logout', (req, res) => {
     req.session.destroy(() => res.redirect('/'));
 });
 
+// Authenticated dashboard
 app.get('/dashboard', (req, res) => {
     if (!req.session.user) return res.redirect('/');
     res.render('index/authenticated', { username: req.session.user.username });
 });
 
+// Admin dashboard view
+app.get('/admin', requireAdmin, async (req, res) => {
+    try {
+        const users = await User.find({}, 'username role');
+        res.render('admin/dashboard', { users });
+    } catch (err) {
+        res.status(500).send('Error loading admin dashboard.');
+    }
+});
+
+// Admin: delete user
+app.post('/admin/delete-user', requireAdmin, async (req, res) => {
+    const { username } = req.body;
+    try {
+        if (username === req.session.user.username) {
+            return res.status(400).send('Admins cannot delete themselves.');
+        }
+        await User.deleteOne({ username });
+        res.redirect('/admin');
+    } catch (err) {
+        res.status(500).send('Error deleting user.');
+    }
+});
+
+// Admin: update user role
+app.post('/admin/update-role', requireAdmin, async (req, res) => {
+    const { username, role } = req.body;
+    try {
+        await User.updateOne({ username }, { role });
+        res.redirect('/admin');
+    } catch (err) {
+        res.status(500).send('Error updating user role.');
+    }
+});
+
+// ---------- Default Admin Account ----------
+
+async function createDefaultAdmin() {
+    try {
+        const existingAdmin = await User.findOne({ username: 'admin' });
+        if (!existingAdmin) {
+            const hashedPassword = await bcrypt.hash('password', 10);
+            const admin = new User({
+                username: 'admin',
+                password: hashedPassword,
+                role: 'admin'
+            });
+            await admin.save();
+            console.log('✅ Default admin account created: admin / password');
+        } else {
+            console.log('ℹ️ Admin account already exists');
+        }
+    } catch (err) {
+        console.error('❌ Error creating default admin:', err);
+    }
+}
+
+// ---------- MongoDB Connection and App Launch ----------
+
 mongoose.connect(MONGO_URI)
-    .then(() => app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`)))
+    .then(async () => {
+        await createDefaultAdmin();
+        app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+    })
     .catch((err) => console.error('❌ MongoDB connection error:', err));
