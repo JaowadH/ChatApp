@@ -1,10 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-    <meta charset="UTF-8">
-    <title>Socket Chat</title>
-    <link rel="stylesheet" href="/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat App</title>
+
+  <!-- Tailwind CSS -->
+  <link href="/css/output.css" rel="stylesheet" />
+
+  <!-- Set initial theme before page paints -->
+  <script>
+    const userPref = localStorage.getItem("theme");
+    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (userPref === "dark" || (!userPref && systemPrefersDark)) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  </script>
 </head>
-<body>
-    <header>
-    </header>
+
+<!-- Tailwind will toggle between light and dark styles based on the .dark class on <html> -->
+<body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen">
+
+  <!-- Navbar -->
+  <header class="w-full bg-gray-100 dark:bg-gray-800 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+
+      <!-- Clickable App Name (Home Link) -->
+      <a href="/" class="text-2xl font-bold text-blue-500 hover:text-blue-400 transition">
+        Chat App
+      </a>
+
+      <!-- Navigation links -->
+      <nav class="flex items-center space-x-4">
+        <% if (typeof user !== 'undefined') { %>
+          <a href="/profile" class="hover:text-blue-400">Profile</a>
+          <form action="/logout" method="POST" class="inline">
+            <button type="submit" class="hover:text-blue-400">Logout</button>
+          </form>
+        <% } else { %>
+          <a href="/login" class="hover:text-blue-400">Login</a>
+          <a href="/signup" class="hover:text-blue-400">Sign Up</a>
+        <% } %>
+
+        <!-- Theme toggle button -->
+        <button id="theme-toggle" class="text-2xl p-2 hover:scale-110 transition" title="Toggle Theme">
+          🌙
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Working theme toggle script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleBtn = document.getElementById("theme-toggle");
+      const html = document.documentElement;
+
+      // Set icon based on initial theme
+      toggleBtn.textContent = html.classList.contains("dark") ? "☀️" : "🌙";
+
+      toggleBtn.addEventListener("click", () => {
+        html.classList.toggle("dark");
+        const theme = html.classList.contains("dark") ? "dark" : "light";
+        localStorage.setItem("theme", theme);
+        toggleBtn.textContent = theme === "dark" ? "☀️" : "🌙";
+      });
+    });
+  </script>
