@@ -9,15 +9,29 @@ const MongoStore = require('connect-mongo');
 const bcrypt = require('bcrypt');
 const User = require('./models/user');
 const { v4: uuidv4 } = require('uuid');
+const {
+    onNewClientConnected,
+    onClientDisconnected,
+    onNewMessage,
+    userSockets
+} = require('./utils/chatUtils');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGODB_URI;
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
 const app = express();
-expressWs(app);
+const wsInstance = expressWs(app); // Store instance in case needed later
 
 // ---------- Middleware ----------
+
+const sessionMiddleware = session({
+    secret: SESSION_SECRET || 'fallbackSecret',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: MONGO_URI }),
+    cookie: { secure: false }
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -25,94 +39,75 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-// Session setup with MongoDB store
-app.use(session({
-    secret: SESSION_SECRET || 'fallbackSecret',
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: MONGO_URI })
-}));
+// Attach session to HTTP requests
+app.use(sessionMiddleware);
 
 // ---------- WebSocket Management ----------
 
-const connectedClients = {};  // username -> socket
-const userSockets = new Map();  // socket -> username
+// Apply session to WebSocket requests
+app.use((req, res, next) => {
+    sessionMiddleware(req, res, next);
+});
 
-// WebSocket connection handler
 app.ws('/ws', (socket, req) => {
-    const username = req.session?.user?.username;
-    if (!username) {
-        console.log('No session for WebSocket, closing connection.');
-        socket.close();
-        return;
-    }
-
-    console.log(`WebSocket connected: ${username}`);
-    connectedClients[username] = socket;
-    userSockets.set(socket, username);
-    broadcastUserList();
-
-    // Handle messages
-    socket.on('message', (rawMessage) => {
+    sessionMiddleware(req, {}, async () => {
         try {
-            const data = JSON.parse(rawMessage);
-            switch (data.type) {
-                case 'message': {
-                    const timestamp = new Date().toISOString();
-                    const msg = {
-                        type: 'message',
-                        sender: username,
-                        message: data.message,
-                        timestamp,
-                        status: 'sent',
-                        readBy: [username],
-                    };
-                    broadcastMessage(msg);
-                    break;
-                }
-                case 'typing': {
-                    const typingPayload = JSON.stringify({ type: 'typing', username });
-                    for (const [name, sock] of Object.entries(connectedClients)) {
-                        if (name !== username) {
-                            sock.send(typingPayload);
-                        }
-                    }
-                    break;
-                }
-            }
-        } catch (err) {
-            console.error('WebSocket message error:', err);
-        }
-    });
+            console.log('WebSocket setup triggered');
 
-    // Cleanup on disconnect
-    socket.on('close', () => {
-        const user = userSockets.get(socket);
-        delete connectedClients[user];
-        userSockets.delete(socket);
-        broadcastUserList();
-        console.log(`WebSocket disconnected: ${user}`);
+            const sessionUser = req.session?.user;
+            console.log('WebSocket session user:', sessionUser);
+
+            if (!sessionUser) {
+                console.log('WebSocket rejected: No session');
+                socket.close();
+                return;
+            }
+
+            const username = sessionUser.username;
+            const userId = sessionUser._id;
+
+            console.log(`🔌 WebSocket connected: ${username}`);
+            onNewClientConnected(socket, username, userId);
+
+            socket.on('message', async (rawMessage) => {
+                console.log(`Received from ${username}:`, rawMessage);
+                try {
+                    const data = JSON.parse(rawMessage);
+                    console.log('Parsed:', data);
+
+                    if (data.type === 'message') {
+                        await onNewMessage(data.message, username, userId);
+                    } else if (data.type === 'typing') {
+                        const typingPayload = JSON.stringify({ type: 'typing', username });
+                        for (const [sock, name] of userSockets.entries()) {
+                            if (name !== username && sock.readyState === 1) {
+                                sock.send(typingPayload);
+                            }
+                        }
+                    } else {
+                        console.warn('Unknown type:', data.type);
+                    }
+                } catch (err) {
+                    console.error('Error handling socket message:', err);
+                }
+            });
+
+            socket.on('close', () => {
+                onClientDisconnected(socket);
+                console.log(`WebSocket disconnected: ${username}`);
+            });
+
+            socket.on('error', (err) => {
+                console.error('WebSocket error:', err);
+            });
+
+        } catch (err) {
+            console.error('WebSocket connection crash:', err);
+        }
     });
 });
 
-function broadcastUserList() {
-    const userListPayload = JSON.stringify({
-        type: 'userList',
-        users: Object.keys(connectedClients)
-    });
-    for (const sock of Object.values(connectedClients)) {
-        sock.send(userListPayload);
-    }
-}
 
-function broadcastMessage(message) {
-    const msgString = JSON.stringify(message);
-    for (const sock of Object.values(connectedClients)) {
-        sock.send(msgString);
-    }
-}
-
-// ---------- Admin Middleware ----------
 
 function requireAdmin(req, res, next) {
     if (req.session.user && req.session.user.role === 'admin') {
@@ -125,6 +120,9 @@ function requireAdmin(req, res, next) {
 
 // Landing page
 app.get('/', (req, res) => {
+    if (req.session.user) {
+        return res.redirect('/authenticated');
+    }
     res.render('index/unauthenticated');
 });
 
@@ -146,7 +144,7 @@ app.post('/login', async (req, res) => {
         if (user.role === 'admin') {
             return res.redirect('/admin');
         } else {
-            return res.redirect('/dashboard');
+            return res.redirect('/authenticated');
         }
     } catch (err) {
         console.error(err);
@@ -170,7 +168,7 @@ app.post('/signup', async (req, res) => {
         await newUser.save();
 
         req.session.user = { username: newUser.username, role: newUser.role };
-        res.redirect('/dashboard');
+        res.redirect('/authenticated');
     } catch (err) {
         console.error(err);
         res.render('signup', { errorMessage: 'Signup error, please try again.' });
@@ -187,6 +185,17 @@ app.get('/dashboard', (req, res) => {
     if (!req.session.user) return res.redirect('/');
     res.render('index/authenticated', { username: req.session.user.username });
 });
+
+app.get('/authenticated', (req, res) => {
+    if (!req.session.user) {
+        return res.redirect('/');
+    }
+
+    res.render('index/authenticated', {
+        username: req.session.user.username
+    });
+});
+
 
 // Admin dashboard view
 app.get('/admin', requireAdmin, async (req, res) => {
