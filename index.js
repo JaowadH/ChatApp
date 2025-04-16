@@ -7,13 +7,6 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const bcrypt = require('bcrypt');
-<<<<<<< HEAD
-const dotenv = require('dotenv').config();
-
-const PORT = 3000;
-//TODO: Replace with the URI pointing to your own MongoDB setup
-const MONGO_URI = process.env.MONGO_URI;
-=======
 const User = require('./models/user');
 const { v4: uuidv4 } = require('uuid');
 const {
@@ -27,7 +20,6 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGODB_URI;
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
->>>>>>> styling-cody
 const app = express();
 const wsInstance = expressWs(app); // Store instance in case needed later
 
@@ -249,7 +241,7 @@ async function createDefaultAdmin() {
             const hashedPassword = await bcrypt.hash('password', 10);
             const admin = new User({
                 username: 'admin',
-                password: hashedPassword,
+                password: hashedPassword, // default pass: password
                 role: 'admin'
             });
             await admin.save();
