@@ -1,61 +1,98 @@
-const webSocket = new WebSocket("ws://localhost:3000/ws");
+document.addEventListener("DOMContentLoaded", () => {
+  const webSocket = new WebSocket("ws://localhost:3000/ws");
 
-webSocket.addEventListener("message", (event) => {
-    const eventData = JSON.parse(event.data);
+  const chatForm = document.getElementById("chat-form");
+  const chatInput = document.getElementById("chat-input");
+  const chatBox = document.getElementById("chat-box");
+  const typingStatus = document.getElementById("typing-status");
+  const onlineUsers = document.getElementById("online-users");
+  const userCount = document.getElementById("user-count");
+
+  // This should be passed from server-side EJS into a script tag
+  const currentUsername = window.username || "anonymous"; // fallback
+
+  // Format timestamps
+  function formatTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Avatar initials
+  function getInitials(name) {
+    return name.charAt(0).toUpperCase();
+  }
+
+  // Render one message
+  function renderMessage({ sender, message, timestamp, status = "sent", readBy = [] }) {
+    const isOwnMessage = sender === currentUsername;
+
+    const msgWrapper = document.createElement("div");
+    msgWrapper.className = `flex ${isOwnMessage ? "justify-end" : "justify-start"} animate-fade-in`;
+
+    const messageHTML = `
+      <div class="max-w-xs md:max-w-md ${isOwnMessage ? "text-right" : ""}">
+        <div class="flex ${isOwnMessage ? "flex-row-reverse justify-end" : "items-center space-x-2"}">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+            isOwnMessage ? "bg-blue-600 text-white" : "bg-gray-500 text-white"
+          }">${getInitials(sender)}</div>
+          <div class="${isOwnMessage ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"} px-4 py-2 rounded-lg ${isOwnMessage ? "rounded-br-none" : "rounded-bl-none"}">
+            ${message}
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          ${status} • ${formatTime(timestamp)}
+          ${isOwnMessage && readBy.length > 0 ? ` • Read by: ${readBy.join(", ")}` : ""}
+        </div>
+      </div>
+    `;
+
+    msgWrapper.innerHTML = messageHTML;
+    chatBox.appendChild(msgWrapper);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  // Handle sending messages
+  chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    const payload = {
+      type: "message",
+      message: text,
+    };
+
+    webSocket.send(JSON.stringify(payload));
+    chatInput.value = "";
+  });
+
+  // Handle incoming events
+  webSocket.addEventListener("message", (event) => {
+    const data = JSON.parse(event.data);
+
+    switch (data.type) {
+      case "message":
+        renderMessage(data);
+        break;
+      case "typing":
+        typingStatus.innerText = `${data.username} is typing...`;
+        setTimeout(() => (typingStatus.innerText = ""), 1500);
+        break;
+      case "userList":
+        onlineUsers.innerHTML = "";
+        data.users.forEach((user) => {
+          const li = document.createElement("li");
+          li.textContent = user;
+          onlineUsers.appendChild(li);
+        });
+        userCount.textContent = data.users.length;
+        break;
+    }
+  });
+
+  // Typing indication
+  chatInput.addEventListener("input", () => {
+    webSocket.send(JSON.stringify({ type: "typing" }));
+  });
 
 });
-
-/**
- * Handles updating the chat user list when a new user connects
- * 
- * This function isn't necessary and should be deleted if unused. But it's left as a hint to how you might want 
- * to handle users connecting
- * 
- * @param {string} username The username of the user who joined the chat
- */
-function onUserConnected(username) {
-
-}
-
-/**
- * Handles updating the chat list when a user disconnects from the chat
- * 
- * This function isn't necessary and should be deleted if unused. But it's left as a hint to how you might want 
- * to handle users disconnecting
- * 
- * @param {string} username The username of the user who left the chat
- */
-function onUserDisconnected(username) {
-
-}
-
-/**
- * Handles updating the chat when a new message is receieved
- * 
- * This function isn't necessary and should be deleted if unused. But it's left as a hint to how you might want 
- * to handle new messages arriving
- * 
- * @param {string} username The username of the user who sent the message
- * @param {string} timestamp When the message was sent
- * @param {string} message The message that was sent
- */
-function onNewMessageReceived(username, timestamp, message) {
-
-}
-
-/**
- * Handles sending a message to the server when the user sends a new message
- * @param {FormDataEvent} event The form submission event containing the message information
- */
-function onMessageSent(event) {
-    //Note: This code might not work, but it's left as a bit of a hint as to what you might want to do when handling 
-    //      new messages. It assumes that user's are sending messages using a <form> with a <button> clicked to
-    //      do the submissions. 
-    event.preventDefault();
-    const formData = new FormData(event.target, event.submitter);
-    const inputs = event.target.querySelectorAll("input");
-}
-
-//Note: This code might not work, but it's left as a bit of a hint as to what you might want to do trying to setup 
-//      adding new messages
-document.getElementById("message-form").addEventListener("submit", onMessageSent);
