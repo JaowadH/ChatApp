@@ -8,11 +8,14 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const bcrypt = require('bcrypt');
 const User = require('./models/user');
+const Message = require('./models/message');
 const { v4: uuidv4 } = require('uuid');
 const {
     onNewClientConnected,
     onClientDisconnected,
     onNewMessage,
+    handleTyping,
+    handleMarkRead,
     userSockets
 } = require('./utils/chatUtils');
 
@@ -78,12 +81,9 @@ app.ws('/ws', (socket, req) => {
                     if (data.type === 'message') {
                         await onNewMessage(data.message, username, userId);
                     } else if (data.type === 'typing') {
-                        const typingPayload = JSON.stringify({ type: 'typing', username });
-                        for (const [sock, name] of userSockets.entries()) {
-                            if (name !== username && sock.readyState === 1) {
-                                sock.send(typingPayload);
-                            }
-                        }
+                        handleTyping(socket);
+                    } else if (data.type === 'markRead') {
+                        await handleMarkRead(socket);
                     } else {
                         console.warn('Unknown type:', data.type);
                     }
@@ -138,7 +138,7 @@ app.post('/login', async (req, res) => {
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.render('login', { errorMessage: 'Invalid username or password' });
         }
-        req.session.user = { username: user.username, role: user.role };
+        req.session.user = { _id: user._id, username: user.username, role: user.role };
 
         // Redirect to admin dashboard if admin, otherwise to user dashboard
         if (user.role === 'admin') {
@@ -167,7 +167,7 @@ app.post('/signup', async (req, res) => {
         const newUser = new User({ username, password: hashedPassword, role: 'user' });
         await newUser.save();
 
-        req.session.user = { username: newUser.username, role: newUser.role };
+        req.session.user = { _id: newUser._id, username: newUser.username, role: newUser.role };
         res.redirect('/authenticated');
     } catch (err) {
         console.error(err);
@@ -183,19 +183,22 @@ app.post('/logout', (req, res) => {
 // Authenticated dashboard
 app.get('/dashboard', (req, res) => {
     if (!req.session.user) return res.redirect('/');
-    res.render('index/authenticated', { username: req.session.user.username });
+    res.redirect('/authenticated');
 });
 
-app.get('/authenticated', (req, res) => {
+app.get('/authenticated', async (req, res) => {
     if (!req.session.user) {
         return res.redirect('/');
     }
 
+    const messages = await Message.find().sort({ timestamp: 1 });
+
     res.render('index/authenticated', {
-        username: req.session.user.username
+        username: req.session.user.username,
+        userId:   req.session.user._id,
+        messages
     });
 });
-
 
 // Admin dashboard view
 app.get('/admin', requireAdmin, async (req, res) => {
