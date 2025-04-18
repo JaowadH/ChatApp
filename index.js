@@ -114,7 +114,12 @@ app.ws('/ws', (socket, req) => {
     });
 });
 
-
+function requireLogin(req, res, next) {
+    if (!req.session.user) {
+      return res.redirect('/login');
+    }
+    next();
+}
 
 function requireAdmin(req, res, next) {
     if (req.session.user && req.session.user.role === 'admin') {
@@ -181,6 +186,32 @@ app.post('/signup', async (req, res) => {
         res.render('signup', { errorMessage: 'Signup error, please try again.' });
     }
 });
+
+// Profile Route
+app.get('/profile', requireLogin, async (req, res) => {
+    const user = await User.findOne({ username: req.session.user.username });
+
+    if (!user) return res.status(404).send('User Not Found');
+
+    res.render('profile', {
+        profileUser: user,
+        isSelf: true
+    });
+});
+
+// View another user's profile
+app.get('/profile/:username', requireLogin, async (req, res) => {
+    const user = await User.findOne({ username: req.params.username });
+  
+    if (!user) return res.status(404).send('User not found');
+  
+    const isSelf = req.session.user.username === req.params.username;
+  
+    res.render('profile', {
+      profileUser: user,
+      isSelf
+    });
+  });
 
 // Logout route
 app.post('/logout', (req, res) => {

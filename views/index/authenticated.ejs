@@ -46,10 +46,11 @@
             <div class="flex <%= msg.sender === username
                                 ? 'flex-row-reverse justify-end'
                                 : 'items-center space-x-2' %>">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
-                          <%= msg.sender === username ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white' %>">
-                <%= msg.sender.charAt(0).toUpperCase() %>
-              </div>
+              <img
+              src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=<%= msg.sender %>"
+              alt="Avatar for <%= msg.sender %>"
+              class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
+            />
               <div class="<%= msg.sender === username
                             ? 'bg-blue-500 text-white'
                             : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white' %>

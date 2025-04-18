@@ -37,26 +37,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const wrapper = document.createElement("div");
     wrapper.className = `flex ${isOwn ? "justify-end" : "justify-start"} animate-fade-in`;
     wrapper.dataset.id = messageId;
-
+  
     wrapper.innerHTML = `
       <div class="max-w-xs md:max-w-md ${isOwn ? "text-right" : ""}">
-        <div class="flex ${isOwn ? "flex-row-reverse justify-end" : "items-center space-x-2"}">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-            isOwn ? "bg-blue-600 text-white" : "bg-gray-500 text-white"
-          }">${getInitials(sender)}</div>
+        <div class="flex ${isOwn ? "flex-row-reverse justify-end items-center" : "items-center space-x-2"}">
+          <!-- DiceBear Avatar -->
+          <img
+            src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=${sender}"
+            alt="Avatar for ${sender}"
+            class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
+          />
+  
+          <!-- Message Bubble -->
           <div class="${
-            isOwn ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
+            isOwn
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
           } px-4 py-2 rounded-lg ${isOwn ? "rounded-br-none" : "rounded-bl-none"}">
             ${message}
           </div>
         </div>
+  
+        <!-- Timestamp & Read Receipts -->
         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
           ${status} • ${formatTime(timestamp)}
           ${isOwn && readBy.length > 0 ? ` • Read by: ${readBy.join(", ")}` : ""}
         </div>
       </div>
     `;
-
+  
     chatBox.appendChild(wrapper);
     chatBox.scrollTop = chatBox.scrollHeight;
   }
