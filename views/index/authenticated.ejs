@@ -12,8 +12,9 @@
   <!-- Sidebar: Online Users -->
   <aside class="bg-gray-100 dark:bg-gray-800 w-full md:w-64 p-4 border-b md:border-r border-gray-300 dark:border-gray-700">
     <h2 class="text-lg font-semibold text-blue-500 mb-4">Online Users</h2>
+    <!-- this is where the JS will inject each online user -->
     <ul id="online-users" class="space-y-2 text-sm">
-      <!-- dynamically filled -->
+      <!-- dynamically filled by frontend.js -->
     </ul>
     <p class="mt-4 text-gray-600 dark:text-gray-400 text-xs">
       Total: <span id="user-count">0</span>
@@ -23,12 +24,11 @@
   <!-- Chat Area -->
   <main class="flex-1 flex flex-col">
 
-    <!-- Top Bar with Logout (and your extra button) -->
+    <!-- Top Bar -->
     <div class="flex justify-between items-center p-4 border-b border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
       <h2 class="text-lg font-semibold text-blue-500">Chat</h2>
       <div class="flex space-x-2 items-center">
-        <!-- ▶︎ Paste your extra button here, e.g.: -->
-        <!-- <button class="px-3 py-1 bg-green-500 text-white rounded">My Button</button> -->
+        <!-- extra button slot -->
         <form action="/logout" method="POST">
           <button class="text-sm bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded-lg">
             Logout
@@ -46,11 +46,22 @@
             <div class="flex <%= msg.sender === username
                                 ? 'flex-row-reverse justify-end'
                                 : 'items-center space-x-2' %>">
-              <img
-              src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=<%= msg.sender %>"
-              alt="Avatar for <%= msg.sender %>"
-              class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
-            />
+              <!-- clickable avatar + username -->
+              <a
+                href="/profile/<%= msg.sender %>"
+                class="flex items-center space-x-2 <%= msg.sender === username ? 'space-x-reverse' : '' %>"
+              >
+                <img
+                  src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=<%= msg.sender %>"
+                  alt="Avatar for <%= msg.sender %>"
+                  class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
+                />
+                <span class="text-sm font-medium <%= msg.sender === username ? 'text-white' : 'text-gray-900 dark:text-white' %>">
+                  <%= msg.sender %>
+                </span>
+              </a>
+
+              <!-- message bubble -->
               <div class="<%= msg.sender === username
                             ? 'bg-blue-500 text-white'
                             : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white' %>
@@ -60,7 +71,9 @@
               </div>
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              sent • <%= new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) %>
+              sent •
+              <%= new Date(msg.timestamp)
+                     .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) %>
               <% if (msg.sender === username && msg.readBy.filter(u => u !== username).length > 0) { %>
                 • Read by: <%= msg.readBy.filter(u => u !== username).join(', ') %>
               <% } %>
@@ -69,7 +82,7 @@
         </div>
       <% }) %>
 
-      <!-- hidden typing bubble -->
+      <!-- typing indicator -->
       <div id="typing-indicator"
            class="flex justify-start animate-fade-in p-2 rounded bg-gray-700 self-start text-gray-200 italic hidden"
            data-id="__typing__">

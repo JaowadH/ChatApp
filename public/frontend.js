@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatBox         = document.getElementById("chat-box");
   const typingIndicator = document.getElementById("typing-indicator");
   const typingText      = document.getElementById("typing-text");
-  const onlineUsers     = document.getElementById("online-users");
+  const onlineUsersList = document.getElementById("online-users");
   const userCount       = document.getElementById("user-count");
   const currentUsername = window.username || "anonymous";
 
@@ -27,27 +27,28 @@ document.addEventListener("DOMContentLoaded", () => {
       : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  function getInitials(name) {
-    return name.charAt(0).toUpperCase();
-  }
-
-  // render message bubbles
+  // render a message bubble
   function renderMessage({ messageId, sender, message, timestamp, status = "sent", readBy = [] }) {
     const isOwn = sender === currentUsername;
     const wrapper = document.createElement("div");
     wrapper.className = `flex ${isOwn ? "justify-end" : "justify-start"} animate-fade-in`;
     wrapper.dataset.id = messageId;
-  
+
     wrapper.innerHTML = `
       <div class="max-w-xs md:max-w-md ${isOwn ? "text-right" : ""}">
         <div class="flex ${isOwn ? "flex-row-reverse justify-end items-center" : "items-center space-x-2"}">
-          <!-- DiceBear Avatar -->
-          <img
-            src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=${sender}"
-            alt="Avatar for ${sender}"
-            class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
-          />
-  
+          <!-- Clickable Avatar & Name -->
+          <a href="/profile/${sender}" class="flex items-center space-x-2 ${isOwn ? 'space-x-reverse' : ''}">
+            <img
+              src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=${sender}"
+              alt="Avatar for ${sender}"
+              class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
+            />
+            <span class="text-sm font-medium ${isOwn ? 'text-white' : 'text-gray-900 dark:text-white'}">
+              ${sender}
+            </span>
+          </a>
+
           <!-- Message Bubble -->
           <div class="${
             isOwn
@@ -57,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ${message}
           </div>
         </div>
-  
+
         <!-- Timestamp & Read Receipts -->
         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
           ${status} • ${formatTime(timestamp)}
@@ -65,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       </div>
     `;
-  
+
     chatBox.appendChild(wrapper);
     chatBox.scrollTop = chatBox.scrollHeight;
   }
@@ -105,17 +106,13 @@ document.addEventListener("DOMContentLoaded", () => {
     switch (msg.type) {
       case "message":
         renderMessage(msg);
-        // hide typing bubble immediately
         typingIndicator.classList.add("hidden");
-
-        // if from another, echo a read mark
         if (msg.sender !== currentUsername) {
           webSocket.send(JSON.stringify({ type: "markRead" }));
         }
         break;
 
       case "typing":
-        // show typing bubble
         typingText.textContent = `${msg.username} is typing…`;
         typingIndicator.classList.remove("hidden");
         clearTimeout(typingTimeout);
@@ -124,7 +121,34 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 1500);
         break;
 
+      case "onlineUsers":
+        // Populate the sidebar with actual users
+        onlineUsersList.innerHTML = "";
+        msg.users.forEach(user => {
+          const li = document.createElement("li");
+          li.className = "flex items-center space-x-2";
+
+          li.innerHTML = `
+            <a href="/profile/${user.username}" class="flex items-center space-x-2">
+              <img
+                src="https://api.dicebear.com/7.x/fun-emoji/svg?seed=${user.username}"
+                alt="Avatar for ${user.username}"
+                class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600"
+              />
+              <span class="text-gray-900 dark:text-white text-sm font-medium">
+                ${user.username}
+              </span>
+            </a>
+          `;
+
+          onlineUsersList.appendChild(li);
+        });
+        // update total below
+        userCount.innerText = msg.users.length;
+        break;
+
       case "onlineCount":
+        // fallback count-only update
         userCount.innerText = msg.total;
         break;
 
@@ -133,7 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
 
       default:
-        // ignore
+        // ignore unknown types
         break;
     }
   });

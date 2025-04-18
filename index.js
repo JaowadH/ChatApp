@@ -49,8 +49,32 @@ app.use(sessionMiddleware);
 app.use((req, res, next) => {
     res.locals.user = req.session.user || null;
     next();
+});
+
+// ----------------------------------------------------------------
+// Broadcast the full list of online usernames to every socket
+function broadcastOnlineUsers() {
+  // userSockets is a Map<socket, { username, userId }>
+  const users = Array.from(userSockets.values()).map(u => {
+    // handle if you stored just a string vs. an object
+    if (typeof u === 'string') {
+      return { username: u };
+    } else if (u && typeof u.username === 'string') {
+      return { username: u.username };
+    } else {
+      return { username: String(u) };
+    }
   });
 
+  const payload = JSON.stringify({ type: 'onlineUsers', users });
+
+  for (const [sock] of userSockets) {
+    if (sock.readyState === 1) { // OPEN
+      sock.send(payload);
+    }
+  }
+}
+// ----------------------------------------------------------------
 
 // ---------- WebSocket Management ----------
 
@@ -78,6 +102,8 @@ app.ws('/ws', (socket, req) => {
 
             console.log(`🔌 WebSocket connected: ${username}`);
             onNewClientConnected(socket, username, userId);
+            // <- newly added: notify everyone of the updated user list
+            broadcastOnlineUsers();
 
             socket.on('message', async (rawMessage) => {
                 console.log(`Received from ${username}:`, rawMessage);
@@ -101,6 +127,8 @@ app.ws('/ws', (socket, req) => {
 
             socket.on('close', () => {
                 onClientDisconnected(socket);
+                // <- newly added: update everyone when someone leaves
+                broadcastOnlineUsers();
                 console.log(`WebSocket disconnected: ${username}`);
             });
 
@@ -211,7 +239,7 @@ app.get('/profile/:username', requireLogin, async (req, res) => {
       profileUser: user,
       isSelf
     });
-  });
+});
 
 // Logout route
 app.post('/logout', (req, res) => {
@@ -236,7 +264,7 @@ app.get('/authenticated', async (req, res) => {
         userId: req.session.user._id,
         role: req.session.user.role,
         messages
-      });
+    });
 });
 
 // Admin dashboard view
