@@ -45,6 +45,13 @@ app.set('view engine', 'ejs');
 // Attach session to HTTP requests
 app.use(sessionMiddleware);
 
+// Makes req.session.user available to all EJS views via `user`
+app.use((req, res, next) => {
+    res.locals.user = req.session.user || null;
+    next();
+  });
+
+
 // ---------- WebSocket Management ----------
 
 // Apply session to WebSocket requests
@@ -195,9 +202,10 @@ app.get('/authenticated', async (req, res) => {
 
     res.render('index/authenticated', {
         username: req.session.user.username,
-        userId:   req.session.user._id,
+        userId: req.session.user._id,
+        role: req.session.user.role,
         messages
-    });
+      });
 });
 
 // Admin dashboard view

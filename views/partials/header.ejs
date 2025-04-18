@@ -34,11 +34,20 @@
 
       <!-- Navigation links -->
       <nav class="flex items-center space-x-4">
+        <% if (user && user.role === 'admin') { %>
+          <a
+            href="/admin"
+            class="text-sm bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded-lg mr-4"
+          >
+            Admin Dashboard
+          </a>
+        <% } %>
         <% if (typeof user !== 'undefined') { %>
           <a href="/profile" class="hover:text-blue-400">Profile</a>
           <form action="/logout" method="POST" class="inline">
             <button type="submit" class="hover:text-blue-400">Logout</button>
           </form>
+          
         <% } else { %>
           <a href="/login" class="hover:text-blue-400">Login</a>
           <a href="/signup" class="hover:text-blue-400">Sign Up</a>
