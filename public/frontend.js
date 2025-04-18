@@ -7,32 +7,31 @@ document.addEventListener("DOMContentLoaded", () => {
     webSocket.send(JSON.stringify({ type: "markRead" }));
   });
 
-  const chatForm = document.getElementById("chat-form");
-  const chatInput = document.getElementById("chat-input");
-  const chatBox = document.getElementById("chat-box");
-  const typingStatus = document.getElementById("typing-status");
-  const onlineUsers = document.getElementById("online-users");
-  const userCount = document.getElementById("user-count");
-
-  // Globals from EJS
+  // grab DOM nodes
+  const chatForm        = document.getElementById("chat-form");
+  const chatInput       = document.getElementById("chat-input");
+  const chatBox         = document.getElementById("chat-box");
+  const typingIndicator = document.getElementById("typing-indicator");
+  const typingText      = document.getElementById("typing-text");
+  const onlineUsers     = document.getElementById("online-users");
+  const userCount       = document.getElementById("user-count");
   const currentUsername = window.username || "anonymous";
 
-  // Format timestamps: supports ISO strings or already-formatted times
+  let typingTimeout;
+
+  // helpers
   function formatTime(input) {
-    const date = new Date(input);
-    if (isNaN(date.getTime())) {
-      // input might already be a readable time string
-      return input;
-    }
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const d = new Date(input);
+    return isNaN(d.getTime())
+      ? input
+      : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  // Avatar initials
   function getInitials(name) {
     return name.charAt(0).toUpperCase();
   }
 
-  // Render one message
+  // render message bubbles
   function renderMessage({ messageId, sender, message, timestamp, status = "sent", readBy = [] }) {
     const isOwn = sender === currentUsername;
     const wrapper = document.createElement("div");
@@ -62,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
     chatBox.scrollTop = chatBox.scrollHeight;
   }
 
-  // Update a message bubble when another user marks it read
+  // update read receipts
   function updateReadReceipt(messageId, reader) {
     const msgDiv = chatBox.querySelector(`[data-id="${messageId}"]`);
     if (!msgDiv) return;
@@ -81,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Send new message
+  // send new message
   chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = chatInput.value.trim();
@@ -90,32 +89,47 @@ document.addEventListener("DOMContentLoaded", () => {
     chatInput.value = "";
   });
 
-  // Handle incoming events
-  webSocket.addEventListener("message", (event) => {
-    const data = JSON.parse(event.data);
-    switch (data.type) {
+  // incoming WS events
+  webSocket.addEventListener("message", ({ data }) => {
+    const msg = JSON.parse(data);
+
+    switch (msg.type) {
       case "message":
-        renderMessage(data);
-        if (data.sender !== currentUsername) {
+        renderMessage(msg);
+        // hide typing bubble immediately
+        typingIndicator.classList.add("hidden");
+
+        // if from another, echo a read mark
+        if (msg.sender !== currentUsername) {
           webSocket.send(JSON.stringify({ type: "markRead" }));
         }
         break;
+
       case "typing":
-        typingStatus.innerText = `${data.username} is typing...`;
-        setTimeout(() => (typingStatus.innerText = ""), 1500);
+        // show typing bubble
+        typingText.textContent = `${msg.username} is typing…`;
+        typingIndicator.classList.remove("hidden");
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          typingIndicator.classList.add("hidden");
+        }, 1500);
         break;
+
       case "onlineCount":
-        userCount.innerText = data.total;
+        userCount.innerText = msg.total;
         break;
+
       case "readReceipt":
-        updateReadReceipt(data.messageId, data.reader);
+        updateReadReceipt(msg.messageId, msg.reader);
         break;
+
       default:
+        // ignore
         break;
     }
   });
 
-  // Emit typing events
+  // emit typing on input
   chatInput.addEventListener("input", () => {
     webSocket.send(JSON.stringify({ type: "typing" }));
   });
