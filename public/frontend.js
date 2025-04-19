@@ -1,8 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
   // Open WebSocket with userId query
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
   const loginTime = window.loginTime || new Date().toISOString();
+
   const webSocket = new WebSocket(
-    `ws://${window.location.host}/ws?userId=${window.userId}` +
+    `${scheme}://${window.location.host}/ws` +
+    `?userId=${window.userId}` +
     `&loginTime=${encodeURIComponent(loginTime)}`
   );
   // Once connected, mark all existing messages as read
