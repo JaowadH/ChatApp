@@ -105,6 +105,23 @@ app.ws('/ws', (socket, req) => {
             connectedClients[username] = socket;
 
             console.log(`🔌 WebSocket connected: ${username}`);
+
+            // Broadcast a join message to all clients
+            const joinAnnouncement = JSON.stringify({
+                type: 'message',
+                sender: 'System',
+                message: `${username} has joined the chat.`,
+                timestamp: new Date().toISOString(),
+                status: 'info',
+                readBy: []
+            });
+            
+            for (const sock of Object.values(connectedClients)) {
+                if (sock.readyState === 1) {
+                sock.send(joinAnnouncement);
+                }
+            };
+            
             onNewClientConnected(socket, username, userId);
             // <- newly added: notify everyone of the updated user list
             broadcastOnlineUsers();

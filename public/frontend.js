@@ -29,6 +29,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // render a message bubble
   function renderMessage({ messageId, sender, message, timestamp, status = "sent", readBy = [] }) {
+    if (sender === "System") {
+      const sysMsg = document.createElement("div");
+      sysMsg.className = "text-center text-sm text-gray-500 italic animate-fade-in";
+      sysMsg.textContent = message;
+      chatBox.appendChild(sysMsg);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return;
+    };    
     const isOwn = sender === currentUsername;
     const wrapper = document.createElement("div");
     wrapper.className = `flex ${isOwn ? "justify-end" : "justify-start"} animate-fade-in`;
