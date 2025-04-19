@@ -1,72 +1,170 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/2M4tl0xb)
-# Real-Time Chat Application
+ChatApp: Real‑Time WebSocket Chat with Node.js & MongoDB
 
-This is the starting point for the **Final Sprint - Team Project**. In this project, you and your group will build a fully functional, real-time chat application using **Express**, **MongoDB**, **EJS templates**, and **WebSockets**.
+A simple, full‑stack chat application built with Node.js, Express, and WebSocket, styled with Tailwind CSS and EJS templates, backed by MongoDB for persistence. Deployed via Docker Compose on a Proxmox VM and exposed securely using a Cloudflare Tunnel.
 
-> **Note:** This final project counts toward **both** your Databases and Fullstack courses. You will submit it once, and the grade will be applied to both courses.
+🚀 Features
 
-For complete project instructions, requirements, and grading details, refer to the [assignment sheet](https://menglishca.github.io/keyin-course-notes/fullstack/sprints/final-team/).
+Real‑time messaging via WebSocket
 
-## Setup Instructions
-1. Accept the GitHub Classroom Assignment
-2. Once your repository is created, **clone your new repo** to your local machine:  
-    ```bash
-    git clone <your-new-repo-url>
-    ```  
-3. Navigate into the project directory and install the necessary dependencies:  
-    ```bash
-    cd <your-new-repo-name>
-    npm install
-    ```  
-4. Run the app:
-    ```bash
-    npm start
-    ```  
-    This will start the server at `http://localhost:3000/`.  
+Typing indicators and read receipts
 
-5. You can now begin development, committing changes as a team:
-   ```bash
-   git add .
-   git commit -m "Start final sprint project"
-   git push origin main
-   ```
+Online user list with dynamic counts
 
-## Development Guidelines
+Avatar integration using DiceBear API
 
-1. **Authentication and Authorization**:
-   - Users must be able to register and log in securely.
-   - Passwords must be hashed using `bcrypt`.
-   - Only authenticated users can access chat and profile pages.
-   - Admin users have access to a special dashboard.
+Session‑based authentication (Express sessions + Mongo store)
 
-2. **Chat System**:
-   - Use WebSockets (`express-ws`) to enable real-time chat.
-   - Chat messages should be stored in MongoDB and include:
-     - Sender's name
-     - Message content
-     - Timestamp
-   - Users must see messages sent **since** they logged in.
-   - Online users and system notifications (e.g., "User X has joined") must be displayed.
+Admin dashboard for user role management
 
-3. **User Management**:
-   - Users have profile pages (join date, username).
-   - Admins can view and remove/ban users via the admin dashboard.
+Persistent chat history (since user login) in MongoDB
 
-4. **MongoDB Integration**:
-   - Use MongoDB for persistent data (users, messages).
-   - In-memory storage is only permitted for temporary data like active sessions.
+🏗️ Tech Stack
 
-5. **EJS Templates**:
-   - All pages must use EJS for rendering.
-   - A shared header partial should include navigation (logout, profile, chat, admin).
+Layer
 
-## Submission Guidelines
-- Submit a link to your **GitHub Classroom repository** via Teams.
-- Ensure the app runs correctly with `npm start`.
-- All required features must be implemented as described in the [assignment sheet](https://menglishca.github.io/keyin-course-notes/fullstack/sprints/final-team/).
+Technology
 
+Runtime & Server
 
-## Notes & Support
-- Class and code examples can be found [in the code samples repo](https://github.com/menglishca/keyin-code-samples).
-- Ask questions on Teams or email if you need clarification.
-- Support is available during lectures and TA hours.
+Node.js (18.x LTS), Express.js
+
+Real‑time         
+
+WebSocket (express‑ws)
+
+Database
+
+MongoDB, Mongoose
+
+Templating & UI
+
+EJS, Tailwind CSS
+
+Session Store
+
+connect-mongo
+
+Deployment
+
+Docker, Docker Compose, Portainer
+
+Host
+
+Proxmox VM (Ubuntu/Debian guest)
+
+Tunnel & DNS
+
+Cloudflare Tunnel (token method)
+
+Version Control
+
+Git, GitHub
+
+📦 Repository Structure
+
+├── Dockerfile              # Node.js application image build
+├── docker-compose.yml      # App + MongoDB + Cloudflare Tunnel stack
+├── .env.example            # Environment variable template
+├── index.js                # Main Express/WebSocket server
+├── models/                 # Mongoose schemas (User, Message)
+├── public/                 # Static assets & frontend.js
+├── utils/chatUtils.js      # WebSocket handlers & history filtering
+├── views/                  # EJS templates (authenticated, login, etc.)
+├── package.json            # npm dependencies & scripts
+└── README.md               # (You are here)
+
+⚙️ Prerequisites
+
+Docker & Docker Compose installed on host
+
+Portainer CE (optional, for GUI container management)
+
+A Proxmox VM running a Linux distro (Ubuntu 22.04 / Debian)
+
+A Cloudflare account and a Tunnel token (see below)
+
+📝 Environment Variables
+
+Create a .env file in the repo root (this file should be in your .gitignore):
+
+MONGODB_URI=mongodb://mongo:27017/yourdbname
+SESSION_SECRET=yourSuperSecret
+PORT=3000
+TUNNEL_TOKEN=<YOUR_CLOUDFLARE_TUNNEL_TOKEN>
+
+MONGODB_URI: Connection string for the MongoDB service
+
+SESSION_SECRET: Secret for Express session encryption
+
+PORT: Port on which the Node.js app listens (default 3000)
+
+TUNNEL_TOKEN: JWT‑style token from Cloudflare for the Tunnel
+
+🐳 Docker & Docker Compose
+
+Build and run all services:
+
+docker-compose up -d --build
+
+Services:
+
+mongo: MongoDB database (persistent volume mongo-data)
+
+chat-app: Your Node.js chat server, auto‑restarts on failure
+
+cloudflared: Cloudflare Tunnel daemon, exposes chat-app securely
+
+Logs & Management:
+
+docker-compose logs -f chat-app
+
+Use Portainer to view logs, exec into containers, and restart if needed
+
+⚓ Deploy via Portainer
+
+Install Portainer (if not already):
+
+docker volume create portainer_data
+docker run -d -p 8000:8000 -p 9000:9000 \
+  --name=portainer --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data portainer/portainer-ce
+
+Create a new Stack in Portainer:
+
+Repository: https://github.com/<your-org>/<your-repo>.git
+
+Branch: refs/heads/main
+
+Compose Path: docker-compose.yml
+
+Define Environment Variables in the Stack UI:
+
+MONGODB_URI, SESSION_SECRET, PORT, TUNNEL_TOKEN (populate with your real values)
+
+Click Deploy. Portainer will build and start all three containers.
+
+🔒 Cloudflare Tunnel (Token Method)
+
+In Cloudflare Zero Trust → Access → Tunnels → Tokens → create a new token with Tunnel:Run scope.
+
+Copy the TUNNEL_TOKEN into your .env.
+
+cloudflared container in your stack uses:
+
+command: tunnel --no-autoupdate --url http://chat-app:3000 run --token $TUNNEL_TOKEN
+
+Optionally set a CNAME in Cloudflare DNS to point chat.yourdomain.com to the tunnel.
+
+🎯 Usage
+
+Navigate to https://chat.yourdomain.com once DNS/Cloudflare Tunnel is configured
+
+Sign up or log in to start chatting in real time
+
+Admins can visit /admin for user management
+
+📄 License
+
+This project is open‑source under the MIT License. Feel free to fork and adapt!
+
