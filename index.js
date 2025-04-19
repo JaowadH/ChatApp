@@ -26,6 +26,8 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const app = express();
 const wsInstance = expressWs(app); // Store instance in case needed later
 
+let connectedClients = {};
+
 // ---------- Middleware ----------
 
 const sessionMiddleware = session({
@@ -100,6 +102,8 @@ app.ws('/ws', (socket, req) => {
             const username = sessionUser.username;
             const userId = sessionUser._id;
 
+            connectedClients[username] = socket;
+
             console.log(`🔌 WebSocket connected: ${username}`);
             onNewClientConnected(socket, username, userId);
             // <- newly added: notify everyone of the updated user list
@@ -126,6 +130,7 @@ app.ws('/ws', (socket, req) => {
             });
 
             socket.on('close', () => {
+                delete connectedClients[username];
                 onClientDisconnected(socket);
                 // <- newly added: update everyone when someone leaves
                 broadcastOnlineUsers();
@@ -165,6 +170,10 @@ app.get('/', (req, res) => {
     }
     res.render('index/unauthenticated');
 });
+
+app.get('/api/online-users', (req, res) => {
+    res.json({ count: Object.keys(connectedClients).length });
+  });  
 
 // Login page and handler
 app.get('/login', (req, res) => {
