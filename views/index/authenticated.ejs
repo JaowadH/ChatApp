@@ -4,6 +4,8 @@
 <script>
   window.username = "<%= username %>";
   window.userId   = "<%= userId %>";
+  // send the moment we rendered this page so chatUtils can filter history
+  window.loginTime = "<%= new Date().toISOString() %>";
 </script>
 <script src="/frontend.js"></script>
 
@@ -64,9 +66,7 @@
               <!-- message bubble -->
               <div class="<%= msg.sender === username
                             ? 'bg-blue-500 text-white'
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white' %>
-                          px-4 py-2 rounded-lg
-                          <%= msg.sender === username ? 'rounded-br-none' : 'rounded-bl-none' %>">
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white' %> px-4 py-2 rounded-lg <%= msg.sender === username ? 'rounded-br-none' : 'rounded-bl-none' %>">
                 <%= msg.content %>
               </div>
             </div>

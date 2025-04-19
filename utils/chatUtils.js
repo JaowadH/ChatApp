@@ -1,4 +1,4 @@
-const Message = require('../models/message'); // Assuming you have this model
+const Message = require('../models/message');
 
 let onlineUsers = new Map(); // key: socket, value: { username, id }
 let userSockets = new Map(); // key: socket, value: username

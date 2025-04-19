@@ -58,7 +58,6 @@ app.use((req, res, next) => {
 function broadcastOnlineUsers() {
   // userSockets is a Map<socket, { username, userId }>
   const users = Array.from(userSockets.values()).map(u => {
-    // handle if you stored just a string vs. an object
     if (typeof u === 'string') {
       return { username: u };
     } else if (u && typeof u.username === 'string') {
@@ -101,6 +100,8 @@ app.ws('/ws', (socket, req) => {
 
             const username = sessionUser.username;
             const userId = sessionUser._id;
+            // pull loginTime from the client query
+            const { loginTime } = req.query;
 
             connectedClients[username] = socket;
 
@@ -118,12 +119,13 @@ app.ws('/ws', (socket, req) => {
             
             for (const sock of Object.values(connectedClients)) {
                 if (sock.readyState === 1) {
-                sock.send(joinAnnouncement);
+                    sock.send(joinAnnouncement);
                 }
-            };
+            }
             
-            onNewClientConnected(socket, username, userId);
-            // <- newly added: notify everyone of the updated user list
+            // pass loginTime so only messages since login are loaded
+            await onNewClientConnected(socket, username, userId, loginTime);
+            // ← notify everyone of the updated user list
             broadcastOnlineUsers();
 
             socket.on('message', async (rawMessage) => {
@@ -149,7 +151,6 @@ app.ws('/ws', (socket, req) => {
             socket.on('close', () => {
                 delete connectedClients[username];
                 onClientDisconnected(socket);
-                // <- newly added: update everyone when someone leaves
                 broadcastOnlineUsers();
                 console.log(`WebSocket disconnected: ${username}`);
             });
@@ -190,7 +191,7 @@ app.get('/', (req, res) => {
 
 app.get('/api/online-users', (req, res) => {
     res.json({ count: Object.keys(connectedClients).length });
-  });  
+});  
 
 // Login page and handler
 app.get('/login', (req, res) => {
@@ -206,7 +207,6 @@ app.post('/login', async (req, res) => {
         }
         req.session.user = { _id: user._id, username: user.username, role: user.role };
 
-        // Redirect to admin dashboard if admin, otherwise to user dashboard
         if (user.role === 'admin') {
             return res.redirect('/admin');
         } else {
@@ -244,7 +244,6 @@ app.post('/signup', async (req, res) => {
 // Profile Route
 app.get('/profile', requireLogin, async (req, res) => {
     const user = await User.findOne({ username: req.session.user.username });
-
     if (!user) return res.status(404).send('User Not Found');
 
     res.render('profile', {
@@ -256,11 +255,9 @@ app.get('/profile', requireLogin, async (req, res) => {
 // View another user's profile
 app.get('/profile/:username', requireLogin, async (req, res) => {
     const user = await User.findOne({ username: req.params.username });
-  
     if (!user) return res.status(404).send('User not found');
-  
+
     const isSelf = req.session.user.username === req.params.username;
-  
     res.render('profile', {
       profileUser: user,
       isSelf
@@ -283,12 +280,13 @@ app.get('/authenticated', async (req, res) => {
         return res.redirect('/');
     }
 
-    const messages = await Message.find().sort({ timestamp: 1 });
+    // no server‐side history; WS will push messages since loginTime
+    const messages = [];
 
     res.render('index/authenticated', {
         username: req.session.user.username,
-        userId: req.session.user._id,
-        role: req.session.user.role,
+        userId:   req.session.user._id,
+        role:     req.session.user.role,
         messages
     });
 });
@@ -337,7 +335,7 @@ async function createDefaultAdmin() {
             const hashedPassword = await bcrypt.hash('password', 10);
             const admin = new User({
                 username: 'admin',
-                password: hashedPassword, // default pass: password
+                password: hashedPassword,
                 role: 'admin'
             });
             await admin.save();
