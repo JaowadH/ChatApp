@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:6
+    restart: always
+    volumes:
+      - mongo-data:/data/db
+
+  chat-app:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    env_file:
+      - .env
+    command: tunnel --no-autoupdate --url http://chat-app:3000 run --token $TUNNEL_TOKEN
+    depends_on:
+      - chat-app
+
+volumes:
+  mongo-data:
